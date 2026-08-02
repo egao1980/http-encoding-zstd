@@ -1,0 +1,65 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: http-encoding-zstd-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SBCL_VERSION: 2.4.11
+  ZSTD_VERSION: "1.5.7"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: egao1980/http-protocol
+          path: _siblings/http-protocol
+
+      - uses: actions/checkout@v4
+        with:
+          repository: egao1980/cl-stack-zstd
+          path: _siblings/cl-stack-zstd
+
+      - name: Layout siblings for qlfile
+        shell: bash
+        run: |
+          mkdir -p /tmp/ws
+          cp -a "$GITHUB_WORKSPACE" /tmp/ws/http-encoding-zstd
+          cp -a "$GITHUB_WORKSPACE/_siblings/http-protocol" /tmp/ws/http-protocol
+          cp -a "$GITHUB_WORKSPACE/_siblings/cl-stack-zstd" /tmp/ws/cl-stack-zstd
+
+      - name: Install build deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake curl
+
+      - name: Build zstd natives
+        working-directory: /tmp/ws/cl-stack-zstd
+        run: |
+          chmod +x scripts/build-zstd.sh
+          ./scripts/build-zstd.sh
+
+      - name: Install Roswell + test
+        working-directory: /tmp/ws/http-encoding-zstd
+        shell: bash
+        run: |
+          curl -sL https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | bash
+          echo "$HOME/.roswell/bin" >> "$GITHUB_PATH"
+          ros install "sbcl-bin/$SBCL_VERSION"
+          ros use "sbcl-bin/$SBCL_VERSION"
+          ros install qlot
+          qlot install
+          qlot exec ros -S . -e '(asdf:test-system "http-encoding-zstd")'
