@@ -49,8 +49,9 @@
 
 (call-with-ci-muffles
  (lambda ()
-   (ci-load "http-protocol" :version "0.1.0")
-   (ci-load "cl-stack-zstd" :version "1.5.7")
+   ;; Omit :version → cl-repo resolves newest published tag.
+   (ci-load "http-protocol")
+   (ci-load "cl-stack-zstd")
    (ci-ensure-ql "rove" "trivial-gray-streams")
    (asdf:test-system "http-encoding-zstd")))
 
