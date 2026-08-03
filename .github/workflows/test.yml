@@ -13,7 +13,8 @@ concurrency:
 env:
   SBCL_VERSION: 2.4.11
   ROSWELL_VERSION: "26.02.116"
-  CL_REPOSITORY_REF: "v0.9.0"
+  # Only cl-repository is raw; pin after provides-link fix merged to main.
+  CL_REPOSITORY_REF: "main"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -64,7 +65,6 @@ jobs:
       - name: cl-repo install deps + test
         shell: bash
         run: |
-          sep=":"
-          [ "${RUNNER_OS}" = "Windows" ] && sep=";"
-          export CL_SOURCE_REGISTRY="$(pwd)//${sep}$(pwd)/.cl-repository//${sep}"
+          # MSYS/bash: always ':' (not ';') — drive letters are not ASDF separators here.
+          export CL_SOURCE_REGISTRY="$(pwd)//:$(pwd)/.cl-repository//:"
           ros -l scripts/ci-test.lisp -q
