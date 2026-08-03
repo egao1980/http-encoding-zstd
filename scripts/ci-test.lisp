@@ -28,8 +28,8 @@
   (call-with-ci-muffles
    (lambda ()
      (if version
-         (cl-repo:load-system name :version version)
-         (cl-repo:load-system name))))
+         (cl-repo:load-system name :version version :sources *ci-ql-sources*)
+         (cl-repo:load-system name :sources *ci-ql-sources*))))
   (unless (asdf:component-loaded-p name)
     (error "ci-load: ~a did not load" name)))
 
@@ -38,6 +38,11 @@
     (unless (asdf:find-system name nil)
       (format t "~&; ci: ql fallback (unpublished) ~a~%" name)
       (ql:quickload name :silent t))))
+
+(defparameter *ci-ql-sources*
+  '(("babel" :ql)
+    ("trivial-features" :ql))
+  "Already loaded via client QL bootstrap — do not reinstall from OCI.")
 
 (cl-repo:add-registry "https://ghcr.io" :namespace "egao1980/cl-systems" :priority :prepend)
 
