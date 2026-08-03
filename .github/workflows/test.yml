@@ -13,7 +13,7 @@ concurrency:
 env:
   SBCL_VERSION: 2.4.11
   ROSWELL_VERSION: "26.02.116"
-  ZSTD_VERSION: "1.5.7"
+  CL_REPOSITORY_REF: "v0.9.0"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -28,42 +28,9 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: egao1980/http-protocol
-          path: _siblings/http-protocol
-
-      - uses: actions/checkout@v4
-        with:
-          repository: egao1980/cl-stack-zstd
-          path: _siblings/cl-stack-zstd
-
-      - name: Layout siblings for qlfile (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          mkdir -p /tmp/ws
-          cp -a "$GITHUB_WORKSPACE" /tmp/ws/http-encoding-zstd
-          cp -a "$GITHUB_WORKSPACE/_siblings/http-protocol" /tmp/ws/http-protocol
-          cp -a "$GITHUB_WORKSPACE/_siblings/cl-stack-zstd" /tmp/ws/cl-stack-zstd
-
-      - name: Install build deps (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake curl
-
-      - name: Build zstd natives (Unix)
-        if: runner.os != 'Windows'
-        working-directory: /tmp/ws/cl-stack-zstd
-        run: |
-          chmod +x scripts/build-zstd.sh
-          ./scripts/build-zstd.sh
-
-      - name: Build zstd natives (Windows)
-        if: runner.os == 'Windows'
-        working-directory: _siblings/cl-stack-zstd
-        shell: pwsh
-        run: |
-          .\scripts\build-zstd.ps1
-          $lib = Resolve-Path "lib\windows-amd64"
-          "Path=$lib;$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append
+          repository: egao1980/cl-repository
+          ref: ${{ env.CL_REPOSITORY_REF }}
+          path: .cl-repository
 
       - name: Install Roswell (Unix)
         if: runner.os != 'Windows'
@@ -89,22 +56,13 @@ jobs:
           ros install "sbcl-bin/$SBCL_VERSION"
           ros use "sbcl-bin/$SBCL_VERSION"
 
-      - name: Test (Unix)
-        if: runner.os != 'Windows'
-        working-directory: /tmp/ws/http-encoding-zstd
+      - name: Bootstrap cl-repository-client (QL deps for client only)
         shell: bash
         run: |
-          ros install qlot
-          qlot install
-          qlot exec ros -S . -e '(asdf:test-system "http-encoding-zstd")'
+          ros -e '(ql:quickload (quote ("yason" "ironclad" "babel" "dexador" "quri" "chipz" "flexi-streams" "cl-ppcre" "cl-base64" "trivial-features" "salza2" "archive")) :silent t)' -q
 
-      - name: Test (Windows)
-        if: runner.os == 'Windows'
+      - name: cl-repo install deps + test
         shell: bash
         run: |
-          # MSYS paths → ':' separators. http-protocol deps from QL.
-          ros install rove cffi blackbird cl-cookie quri trivial-gray-streams
-          export CL_SOURCE_REGISTRY="$(pwd)//:$(pwd)/_siblings/http-protocol//:$(pwd)/_siblings/cl-stack-zstd//:"
-          ros -S . \
-              -e '(setf *debugger-hook* (lambda (c h) (declare (ignore h)) (format *error-output* "~&UNHANDLED: ~A~%" c) (uiop:quit 1)))' \
-              -e '(asdf:test-system "http-encoding-zstd")' -q
+          export CL_SOURCE_REGISTRY="$(pwd)//:$(pwd)/.cl-repository//:"
+          ros -l scripts/ci-test.lisp -q
