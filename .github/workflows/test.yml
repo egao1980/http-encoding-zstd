@@ -102,7 +102,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          ros install rove trivial-gray-streams cffi
+          # MSYS paths → ':' separators. http-protocol deps from QL.
+          ros install rove cffi blackbird cl-cookie quri trivial-gray-streams
           export CL_SOURCE_REGISTRY="$(pwd)//:$(pwd)/_siblings/http-protocol//:$(pwd)/_siblings/cl-stack-zstd//:"
-          ros -e '(setf *debugger-hook* (lambda (c h) (declare (ignore h)) (format *error-output* "~&UNHANDLED: ~A~%" c) (uiop:quit 1)))' \
+          ros -S . \
+              -e '(setf *debugger-hook* (lambda (c h) (declare (ignore h)) (format *error-output* "~&UNHANDLED: ~A~%" c) (uiop:quit 1)))' \
               -e '(asdf:test-system "http-encoding-zstd")' -q
