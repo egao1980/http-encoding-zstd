@@ -12,55 +12,59 @@ concurrency:
 
 env:
   SBCL_VERSION: 2.4.11
-  ZSTD_VERSION: "1.5.7"
+  ROSWELL_VERSION: "26.02.116"
+  # Only cl-repository is raw; pin after provides-link fix merged to main.
+  CL_REPOSITORY_REF: "main"
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/checkout@v4
         with:
-          repository: egao1980/http-protocol
-          path: _siblings/http-protocol
+          repository: egao1980/cl-repository
+          ref: ${{ env.CL_REPOSITORY_REF }}
+          path: .cl-repository
 
-      - uses: actions/checkout@v4
-        with:
-          repository: egao1980/cl-stack-zstd
-          path: _siblings/cl-stack-zstd
-
-      - name: Layout siblings for qlfile
-        shell: bash
-        run: |
-          mkdir -p /tmp/ws
-          cp -a "$GITHUB_WORKSPACE" /tmp/ws/http-encoding-zstd
-          cp -a "$GITHUB_WORKSPACE/_siblings/http-protocol" /tmp/ws/http-protocol
-          cp -a "$GITHUB_WORKSPACE/_siblings/cl-stack-zstd" /tmp/ws/cl-stack-zstd
-
-      - name: Install build deps
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake curl
-
-      - name: Build zstd natives
-        working-directory: /tmp/ws/cl-stack-zstd
-        run: |
-          chmod +x scripts/build-zstd.sh
-          ./scripts/build-zstd.sh
-
-      - name: Install Roswell + test
-        working-directory: /tmp/ws/http-encoding-zstd
+      - name: Install Roswell (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           curl -sL https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | bash
           echo "$HOME/.roswell/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.roswell/bin:$PATH"
+
+      - name: Install Roswell (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          curl -sL "https://github.com/roswell/roswell/releases/download/v${ROSWELL_VERSION}/roswell_${ROSWELL_VERSION}_amd64.zip" \
+            -o /tmp/roswell.zip
+          rm -rf /c/roswell && mkdir -p /c/roswell
+          unzip -qo /tmp/roswell.zip -d /c/roswell
+          echo "/c/roswell/roswell" >> "$GITHUB_PATH"
+          echo "$HOME/.roswell/bin" >> "$GITHUB_PATH"
+
+      - name: Install SBCL
+        shell: bash
+        run: |
           ros install "sbcl-bin/$SBCL_VERSION"
           ros use "sbcl-bin/$SBCL_VERSION"
-          ros install qlot
-          qlot install
-          qlot exec ros -S . -e '(asdf:test-system "http-encoding-zstd")'
+
+      - name: Bootstrap cl-repository-client (QL deps for client only)
+        shell: bash
+        run: |
+          ros -e '(ql:quickload (quote ("yason" "ironclad" "babel" "dexador" "quri" "chipz" "flexi-streams" "cl-ppcre" "cl-base64" "trivial-features" "salza2" "archive")) :silent t)' -q
+
+      - name: cl-repo install deps + test
+        shell: bash
+        run: |
+          # MSYS/bash: always ':' (not ';') — drive letters are not ASDF separators here.
+          export CL_SOURCE_REGISTRY="$(pwd)//:$(pwd)/.cl-repository//:"
+          ros -l scripts/ci-test.lisp -q
