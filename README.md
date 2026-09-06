@@ -1,8 +1,9 @@
 # http-encoding-zstd
 
-MIT. **`zstd`** Content-Encoding backend for [`http-protocol`](https://github.com/egao1980/http-protocol).
-
-Depends on [`cl-stack-zstd`](https://github.com/egao1980/cl-stack-zstd) (native overlay). Soft for consumers — omit from `Accept-Encoding` when unavailable.
+MIT. **`zstd`** Content-Encoding adapter for [`http-protocol`](https://github.com/egao1980/http-protocol).
+Bytes go through [`compression-protocol`](https://github.com/egao1980/compression-protocol);
+[`cl-stack-zstd`](https://github.com/egao1980/cl-stack-zstd) implements `:zstd`. Soft for
+consumers — omit from `Accept-Encoding` when unavailable.
 
 ```bash
 # siblings: http-protocol/ cl-stack-zstd/ http-encoding-zstd/
